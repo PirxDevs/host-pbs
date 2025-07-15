@@ -1,0 +1,120 @@
+#!/bin/bash
+
+# Copyright (C) 2025 Pirx Developers - https://pirx.dev/
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+VERSION="20250715"
+
+SCRIPT_DIR="$(realpath "${0}")"
+SCRIPT_DIR="$(dirname "${SCRIPT_DIR}")"
+
+if test -f "${SCRIPT_DIR}/host-pbs.func"; then
+  . "${SCRIPT_DIR}/host-pbs.func"
+else
+  echo "Function file not found or not readable"
+  exit 1
+fi
+if test -f "${SCRIPT_DIR}/host-pbs.conf"; then
+  . "${SCRIPT_DIR}/host-pbs.conf"
+else
+  echo "Configuration file not found or not readable"
+  exit 1
+fi
+for path in "/bin/jq" "/usr/bin/jq" "/usr/local/bin/jq" "~/bin/jq"; do
+  if [ -x "${path}" ]; then
+    jq_path="${path}"
+  fi
+done
+if [ -z "${jq_path}" ]; then
+  echo "Command jq not found or not executable, please install jq JSON processor"
+  exit 1
+fi
+export PBS_PASSWORD="${pbs_password}"
+export PBS_FINGERPRINT="${pbs_fingerprint}"
+trap 'unset PBS_PASSWORD PBS_FINGERPRINT' EXIT
+if [ -z "${XDG_RUNTIME_DIR}" ]; then
+  export XDG_RUNTIME_DIR="${HOME}/tmp"
+fi
+if [ -z "${1}" ]; then
+  pbc_args=()
+  pbc_args+=("list")
+  pbc_args+=("--repository ${pbs_user}@${pbs_host}:${pbs_repository}")
+  if [ ! -z "${pbs_namespace}" ]; then
+    pbc_args+=("--ns ${pbs_namespace}")
+  fi
+  pbc_args+=("--output-format=json")
+  echo "Available backup groups:"
+  echo
+  proxmox-backup-client ${pbc_args[*]} 2>/dev/null | jq -r '.[] | "\(.["backup-type"])/\(.["backup-id"])"' 2>/dev/null
+  if [ $? -ne 0 ]; then
+    echo "Error reading list of backup groups from Proxmox Backup Server"
+    exit 1
+  fi
+  exit 0
+fi
+if [ -z "${2}" ]; then
+  pbc_args=()
+  pbc_args+=("snapshot")
+  pbc_args+=("list")
+  pbc_args+=("${1}")
+  pbc_args+=("--repository ${pbs_user}@${pbs_host}:${pbs_repository}")
+  if [ ! -z "${pbs_namespace}" ]; then
+    pbc_args+=("--ns ${pbs_namespace}")
+  fi
+  pbc_args+=("--output-format=json")
+  echo "Available backup snapshots for group ${1}:"
+  echo
+  proxmox-backup-client ${pbc_args[*]} 2>/dev/null | jq -r '.[] | (.["backup-time"] | strftime("%Y-%m-%dT%H:%M:%SZ"))' 2>/dev/null
+  if [ $? -ne 0 ]; then
+    echo "Error reading list of backup snapshots from Proxmox Backup Server"
+    exit 1
+  fi
+  exit 0
+fi
+if [ -z "${3}" ]; then
+  cat <<EOF
+
+To restore data, add the destination path to the script options. You can also
+add a list of paths to be restored. For example:
+
+./pbs2host host/myhost.net 2025-07-15T12:20:54Z /mnt/restored-fs
+
+to restore all files or
+
+./pbs2host host/myhost.net 2025-07-15T12:20:54Z /mnt/restored-fs /etc /root
+
+to restore only /etc and /root.
+
+EOF
+  exit 0
+fi
+pbc_args=()
+pbc_args+=("restore")
+pbc_args+=("${1}/${2}")
+pbc_args+=("rootfs.pxar")
+pbc_args+=("${3}")
+pbc_args+=("--repository ${pbs_user}@${pbs_host}:${pbs_repository}")
+if [ ! -z "${pbs_namespace}" ]; then
+  pbc_args+=("--ns ${pbs_namespace}")
+fi
+echo "Restoring archive ${1}/${2}/rootfs.pxar to ${3}, please wait..."
+shift 3
+if [ $# -gt 0 ]; then
+  echo "Restore is limited to following paths:"
+  for path in $@; do
+    echo "${path}"
+    pbc_args+=("--pattern ${path}")
+  done
+fi
+proxmox-backup-client ${pbc_args[*]}

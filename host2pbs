@@ -1,0 +1,78 @@
+#!/bin/bash
+
+# Copyright (C) 2025 Pirx Developers - https://pirx.dev/
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+VERSION="20250715"
+
+SCRIPT_DIR="$(realpath "${0}")"
+SCRIPT_DIR="$(dirname "${SCRIPT_DIR}")"
+if test -f "${SCRIPT_DIR}/host-pbs.func"; then
+  . "${SCRIPT_DIR}/host-pbs.func"
+else
+  echo "Function file not found or not readable"
+  exit 1
+fi
+if test -f "${SCRIPT_DIR}/host-pbs.conf"; then
+  . "${SCRIPT_DIR}/host-pbs.conf"
+else
+  echo "Configuration file not found or not readable"
+  exit 1
+fi
+dry_run=0
+while getopts "d" option; do
+  case "${option}" in
+    d)
+      dry_run=1
+      ;;
+  esac
+done
+log_file="$(mktemp 2>/dev/null)"
+log "host2pbs ${VERSION}"
+log "Starting backup of host $(hostname -f)"
+pbc_args=()
+pbc_args+=("--backup-id $(hostname -f)")
+pbc_args+=("--backup-type host")
+pbc_args+=("--repository ${pbs_user}@${pbs_host}:${pbs_repository}")
+if [ ! -z "${pbs_namespace}" ]; then
+  pbc_args+=("--ns ${pbs_namespace}")
+fi
+for mpoint in $(findmnt -rnU -o TARGET --real 2>/dev/null); do
+  if [ "${mpoint}" = "/" ]; then
+    continue
+  fi
+  log "Including mount point ${mpoint}"
+  pbc_args+=("--include-dev ${mpoint}")
+done
+for path in ${excludes}; do
+  log "Excluding path ${path}"
+  pbc_args+=("--exclude ${path}")
+done
+pbc_args+=("--skip-lost-and-found")
+if [ "${dry_run}" -eq 0 ]; then
+  export PBS_PASSWORD="${pbs_password}"
+  export PBS_FINGERPRINT="${pbs_fingerprint}"
+  run proxmox-backup-client backup rootfs.pxar:/ ${pbc_args[*]}
+  if [ $? -ne 0 ]; then
+    log "Backup has failed"
+  fi
+  unset PBS_PASSWORD
+  unset PBS_FINGERPRINT
+fi
+if [ "${dry_run}" -eq 0 ]; then
+  send_email
+else
+  echo "Sending report to ${report_emails}"
+fi
+rm -f "${log_file}"
