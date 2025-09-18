@@ -6,9 +6,9 @@ Before using them, copy the file "host-pbs.example.conf" to "host-pbs.conf," and
 
 ## host2pbs
 
-This script will back up the root file system of the host on which it is run, including all mount points, except for pseudo file systems, such as /dev and /sys, and any paths listed as excluded in the host-pbs.conf file.
+This script will back up the host's root file system. By default, other file systems and mount points will not be included. Use the -a option to include all mount points, except for pseudo file systems such as /dev, /proc, and /sys. You can also define additional includes or excludes in pbs2host.conf.
 
-To run the backup, simply run the script, or preferrably, add it to the cron job.
+To run the backup, simply run the script, or preferrably, add it to the cron job. You can first run it with the -d option for a dry run to see what will be done.
 
 ## pbs2host
 
