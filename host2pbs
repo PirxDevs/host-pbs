@@ -48,16 +48,23 @@ pbc_args+=("--repository ${pbs_user}@${pbs_host}:${pbs_repository}")
 if [ ! -z "${pbs_namespace}" ]; then
   pbc_args+=("--ns ${pbs_namespace}")
 fi
+for path in ${excludes}; do
+  log "Excluding path ${path}"
+  pbc_args+=("--exclude ${path}")
+done
+for path in ${includes}; do
+  if ! is_excluded "${path}"; then
+    continue
+  fi
+  log "Including path ${path}"
+  pbc_args+=("--include ${path}")
+done
 for mpoint in $(findmnt -rnU -o TARGET --real 2>/dev/null); do
   if [ "${mpoint}" = "/" ] || ! is_excluded "${mpoint}"; then
     continue
   fi
   log "Including mount point ${mpoint}"
   pbc_args+=("--include-dev ${mpoint}")
-done
-for path in ${excludes}; do
-  log "Excluding path ${path}"
-  pbc_args+=("--exclude ${path}")
 done
 pbc_args+=("--skip-lost-and-found")
 if [ "${dry_run}" -eq 0 ]; then
