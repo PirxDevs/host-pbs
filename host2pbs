@@ -31,8 +31,12 @@ else
   exit 1
 fi
 dry_run=0
-while getopts "d" option; do
+all_fs=0
+while getopts "ad" option; do
   case "${option}" in
+    a)
+      all_fs=1
+      ;;
     d)
       dry_run=1
       ;;
@@ -59,13 +63,15 @@ for path in ${includes}; do
   log "Including path ${path}"
   pbc_args+=("--include ${path}")
 done
-for mpoint in $(findmnt -rnU -o TARGET --real 2>/dev/null); do
-  if [ "${mpoint}" = "/" ] || ! is_excluded "${mpoint}"; then
-    continue
-  fi
-  log "Including mount point ${mpoint}"
-  pbc_args+=("--include-dev ${mpoint}")
-done
+if [ "${all_fs}" -eq 1 ]; then
+  for mpoint in $(findmnt -rnU -o TARGET --real 2>/dev/null); do
+    if [ "${mpoint}" = "/" ] || ! is_excluded "${mpoint}"; then
+      continue
+    fi
+    log "Including mount point ${mpoint}"
+    pbc_args+=("--include-dev ${mpoint}")
+  done
+fi
 pbc_args+=("--skip-lost-and-found")
 if [ "${dry_run}" -eq 0 ]; then
   export PBS_PASSWORD="${pbs_password}"
