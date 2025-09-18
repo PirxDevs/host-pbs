@@ -61,7 +61,7 @@ for path in ${includes}; do
     continue
   fi
   log "Including path ${path}"
-  pbc_args+=("--include ${path}")
+  pbc_args+=("--include-dev ${path}")
 done
 if [ "${all_fs}" -eq 1 ]; then
   for mpoint in $(findmnt -rnU -o TARGET --real 2>/dev/null); do
