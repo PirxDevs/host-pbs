@@ -49,7 +49,7 @@ if [ ! -z "${pbs_namespace}" ]; then
   pbc_args+=("--ns ${pbs_namespace}")
 fi
 for mpoint in $(findmnt -rnU -o TARGET --real 2>/dev/null); do
-  if [ "${mpoint}" = "/" ]; then
+  if [ "${mpoint}" = "/" ] || ! is_excluded "${mpoint}"; then
     continue
   fi
   log "Including mount point ${mpoint}"

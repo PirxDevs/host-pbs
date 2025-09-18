@@ -22,6 +22,18 @@ run () {
   return "${PIPESTATUS[0]}"
 }
 
+is_excluded () {
+  local exclude
+  if ! [ -z "${excludes}" ]; then
+    for exclude in ${excludes}; do
+      if [[ "${1}/" == "${exclude}/"* ]]; then
+        return 1
+      fi
+    done
+  fi
+  return 0
+}
+
 send_email () {
   if ! test -z "${smtp_host}" && ! test -z "${report_emails}"; then
     echo -n "Sending report to ${report_emails}"
