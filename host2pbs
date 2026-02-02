@@ -47,7 +47,7 @@ log_file="$(mktemp 2>/dev/null)"
 log "host2pbs ${VERSION}"
 log "Starting backup of host ${backup_name}"
 pbc_args=()
-pbc_args+=("--backup-id \"${backup_name}\"")
+pbc_args+=("--backup-id ${backup_name}")
 pbc_args+=("--backup-type host")
 pbc_args+=("--repository ${pbs_user}@${pbs_host}:${pbs_repository}")
 if [ ! -z "${pbs_namespace}" ]; then
