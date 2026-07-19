@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-VERSION="20250715"
+VERSION="20260719"
 
 SCRIPT_DIR="$(realpath "${0}")"
 SCRIPT_DIR="$(dirname "${SCRIPT_DIR}")"
@@ -84,7 +84,20 @@ if [ -z "${2}" ]; then
 fi
 if [ -z "${3}" ]; then
   cat <<EOF
-
+Specify command:
+  
+catalog - interactive catalog browse/restore
+mount - to mount archive
+restore - to restore all or selected files
+EOF
+  exit 0
+elif [ "${3}" != "restore" ] && [ "${3}" != "mount" ] && [ "${3}" != "catalog" ]; then
+  echo "Invalid command: ${3}"
+  exit 1
+fi
+if [ "${3}" = "restore" ]; then
+  if [ -z "${4}" ]; then
+    cat <<EOF
 To restore data, add the destination path to the script options. You can also
 add a list of paths to be restored. For example:
 
@@ -95,26 +108,64 @@ to restore all files or
 ./pbs2host host/myhost.net 2025-07-15T12:20:54Z /mnt/restored-fs /etc /root
 
 to restore only /etc and /root.
-
 EOF
-  exit 0
-fi
-pbc_args=()
-pbc_args+=("restore")
-pbc_args+=("${1}/${2}")
-pbc_args+=("rootfs.pxar")
-pbc_args+=("${3}")
-pbc_args+=("--repository ${pbs_user}@${pbs_host}:${pbs_repository}")
-if [ ! -z "${pbs_namespace}" ]; then
-  pbc_args+=("--ns ${pbs_namespace}")
-fi
-echo "Restoring archive ${1}/${2}/rootfs.pxar to ${3}, please wait..."
-shift 3
-if [ $# -gt 0 ]; then
-  echo "Restore is limited to following paths:"
-  for path in $@; do
-    echo "${path}"
-    pbc_args+=("--pattern ${path}")
-  done
+    exit 0
+  fi
+  pbc_args=()
+  pbc_args+=("restore")
+  pbc_args+=("${1}/${2}")
+  pbc_args+=("rootfs.pxar")
+  pbc_args+=("${4}")
+  pbc_args+=("--repository ${pbs_user}@${pbs_host}:${pbs_repository}")
+  if [ ! -z "${pbs_namespace}" ]; then
+    pbc_args+=("--ns ${pbs_namespace}")
+  fi
+  echo "Restoring archive ${1}/${2}/rootfs.pxar to ${4}, please wait..."
+  shift 4
+  if [ $# -gt 0 ]; then
+    echo "Restore is limited to following paths:"
+    for path in $@; do
+      echo "${path}"
+      pbc_args+=("--pattern ${path}")
+    done
+  fi
+elif [ "${3}" = "mount" ]; then
+  if [ -z "${4}" ]; then
+    cat <<EOF
+To mount backup image, add the mount path to the script options. For example:
+
+./pbs2host host/myhost.net 2025-07-15T12:20:54Z /mnt/backup
+EOF
+    exit 0
+  fi
+  if ! [ -d "${4}" ]; then
+    mkdir -p "${4}"
+    if [ $? -ne 0 ]; then
+      echo "Error creating mount path ${4}"
+      exit 1
+    fi
+  fi
+  pbc_args=()
+  pbc_args+=("mount")
+  pbc_args+=("${1}/${2}")
+  pbc_args+=("rootfs.pxar")
+  pbc_args+=("${4}")
+  pbc_args+=("--repository ${pbs_user}@${pbs_host}:${pbs_repository}")
+  if [ ! -z "${pbs_namespace}" ]; then
+    pbc_args+=("--ns ${pbs_namespace}")
+  fi
+  echo "Mounting archive ${1}/${2}/rootfs.pxar on ${4}, please wait..."
+elif [ "${3}" = "catalog" ]; then
+  pbc_args=()
+  pbc_args+=("catalog")
+  pbc_args+=("shell")
+  pbc_args+=("${1}/${2}")
+  pbc_args+=("rootfs.pxar")
+  pbc_args+=("${4}")
+  pbc_args+=("--repository ${pbs_user}@${pbs_host}:${pbs_repository}")
+  if [ ! -z "${pbs_namespace}" ]; then
+    pbc_args+=("--ns ${pbs_namespace}")
+  fi
+  echo "Running interactive browse/restore of ${1}/${2}/rootfs.pxar, please wait..."
 fi
 proxmox-backup-client ${pbc_args[*]}
